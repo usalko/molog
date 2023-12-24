@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	escape "main/utils"
 	"maps"
 	"net/http"
 	"regexp"
@@ -213,7 +214,7 @@ func (moLog *MoLog) ServeHTTP(responseWriter http.ResponseWriter, request *http.
 								log.Printf("[ERROR] Failed to read response body: %v", err)
 								return
 							}
-							log.Printf("[INFO] Push result %v", result_body)
+							log.Printf("[INFO] Push result %v", string(result_body[:]))
 						} else {
 							body, err := io.ReadAll(promtailResponse.Body)
 							if err != nil {
@@ -238,7 +239,7 @@ func (moLog *MoLog) ServeHTTP(responseWriter http.ResponseWriter, request *http.
 
 func makePromtailRequest(streams map[string]*string, timestamp time.Time, payload string, promtailConfig *MoLogPromtail) (*http.Request, error) {
 	requestBodyBuffer := new(bytes.Buffer)
-	requestBodyBuffer.WriteString("{\"streams\":{")
+	requestBodyBuffer.WriteString("{\"streams\":[{\"stream\":{")
 	lastLabel := len(streams)
 	for label, value := range streams {
 		requestBodyBuffer.WriteString("\"")
@@ -253,13 +254,15 @@ func makePromtailRequest(streams map[string]*string, timestamp time.Time, payloa
 	}
 	requestBodyBuffer.WriteString("},\"values\":[[\"")                                           // TODO: put batch into the request
 	requestBodyBuffer.WriteString(fmt.Sprintf("%v%v", timestamp.Unix(), timestamp.Nanosecond())) // TODO: add lead zero to the nanoseconds
-	requestBodyBuffer.WriteString("\",\"")
-	requestBodyBuffer.WriteString(payload)
-	requestBodyBuffer.WriteString("\"]]}]}")
+	requestBodyBuffer.WriteString("\",")
+	requestBodyBuffer.WriteString(escape.JSON(payload))
+	requestBodyBuffer.WriteString("]]}]}")
 
 	if promtailConfig.PromtailClientConfig["url"] == nil {
 		return nil, fmt.Errorf("EMPTY promtail url settings")
 	}
+
+	// TODO: remove debug line fmt.Printf("BODY is %v\n", requestBodyBuffer.String())
 
 	req, err := http.NewRequest(
 		"POST",
