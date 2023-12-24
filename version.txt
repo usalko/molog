@@ -1,0 +1,2 @@
+#!/bin/curl
+https://www.name-generator.org.uk/hero/

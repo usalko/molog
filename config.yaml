@@ -1,0 +1,15 @@
+schema.version: "1.0"
+# tls.cert.file: ./certs/mydomain.crt
+# tls.key.file: ./certs/mydomain.key
+promtail.to.endpoint:
+  # first Promtail config entry
+  - promtail.client.config:
+      metadata.url: promtail:6379 # required
+    promtail.default.label: label1
+
+s3.bucket.endpoint:
+  - s3.client.config:
+    endpoint: minio:9000
+    access.key.id: Q3AM3UQ867SPQQA43P2F
+    secret.access.key: zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG
+    use.ssl: false
