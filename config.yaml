@@ -4,7 +4,7 @@ schema.version: "1.0"
 promtail.to.endpoint:
   # first Promtail config entry
   - promtail.client.config:
-      url: http://promtail:3500 # required
+      url: http://promtail:3500/push # required
 
 s3.bucket.endpoint:
   - s3.client.config:

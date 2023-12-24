@@ -207,19 +207,25 @@ func (moLog *MoLog) ServeHTTP(responseWriter http.ResponseWriter, request *http.
 					}
 					if ct := promtailResponse.Header.Get("Content-Type"); ct != "application/json" {
 						log.Printf("Content-Type = %s, want = \"application/json\"", ct)
+						result_body, err := io.ReadAll(promtailResponse.Body)
+						if err != nil {
+							log.Fatalf("failed to read response body: %v", err)
+							return
+						}
+						log.Printf("Error in push %v", result_body)
+					} else {
+						body, err := io.ReadAll(promtailResponse.Body)
+						if err != nil {
+							log.Fatalf("failed to read response body: %v", err)
+							return
+						}
+						var result SuccessfullyUploadedResult
+						if err := json.Unmarshal(body, &result); err != nil {
+							log.Fatalf("failed to decode response body: %v", err)
+							return
+						}
+						log.Printf("Push result %v", result)
 					}
-					body, err := io.ReadAll(promtailResponse.Body)
-					if err != nil {
-						log.Fatalf("failed to read response body: %v", err)
-						return
-					}
-					var result SuccessfullyUploadedResult
-					if err := json.Unmarshal(body, &result); err != nil {
-						log.Fatalf("failed to decode response body: %v", err)
-						return
-					}
-					log.Printf("Push result %v", result)
-
 				}
 			}
 		}

@@ -42,3 +42,10 @@ fi
 if [ $COMMAND == "test3" ]; then
     curl --form-escape --form 'field\name=12.23.23_00.09.58_809.zip' 'file=@.test-data/12.23.23_00.09.58_809.zip' http://localhost:8804/api/v1
 fi
+
+# =============================================================================
+
+if [ $COMMAND == "test0" ]; then
+    curl -X POST http://promtail:3500/push/foo/bar/fizz/buzz -d "Hell, World!"
+fi
+
