@@ -36,7 +36,7 @@ if [ $COMMAND == "test" ]; then
 fi
 
 if [ $COMMAND == "test2" ]; then
-    curl -F file=@.test-data/12.23.23_00.09.58_809.zip http://localhost:8804/api/v1
+    curl -F file=@.test-data/12.23.23_00.09.58_809.zip http://localhost:8804/api/v1?employee=0
 fi
 
 if [ $COMMAND == "test3" ]; then
@@ -46,6 +46,6 @@ fi
 # =============================================================================
 
 if [ $COMMAND == "test0" ]; then
-    curl -X POST http://promtail:3500/loki/api/v1/push?timestamp=now -d "Hell, World!"
+    curl -v -H "Content-Type: application/json" -X POST -s http://promtail:3500/loki/api/v1/push --data-raw '{"sreams":[{"stream":{"foo":"bar"}, "values":[["1570818238000000000", "Hello, WORLD!"]]}]}'
 fi
 

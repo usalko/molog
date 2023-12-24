@@ -17,7 +17,7 @@ endpoint.upload: /api/v1
 promtail.to.endpoint:
   - promtail.client.config:
       # FIXME: https://github.com/edenhill/librdredis/blob/master/CONFIGURATION.md#global-configuration-properties
-      url: promtail:6379
+      url: http://promtail:3500/loki/api/v1/push
 	address: :8804
 	# promtail.default.label: label1
 	# default maximum upload size is 10M
