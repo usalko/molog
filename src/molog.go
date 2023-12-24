@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -108,62 +110,119 @@ func (moLog *MoLog) ServeHTTP(responseWriter http.ResponseWriter, request *http.
 	} else if promtailConfig, exists := moLog.Promtails[request.URL.Path]; exists {
 		// TODO: check method (only PUT and POST allowed)
 		// Upload file
-		srcFile, info, err := request.FormFile("file")
+		uploadedFile, uploadedFileInfo, err := request.FormFile("file")
 		if err != nil {
 			log.Printf("failed to obtain form file: %v", err)
 			return // http.StatusInternalServerError, "", fmt.Errorf("cannot obtain the uploaded content")
 		}
-		src := http.MaxBytesReader(responseWriter, srcFile, moLog.MaxUploadSize)
+		uploadFileReadeCloser := http.MaxBytesReader(responseWriter, uploadedFile, moLog.MaxUploadSize)
 		// MaxBytesReader closes the underlying io.Reader on its Close() is called
-		defer src.Close()
-
-		filename := info.Filename // Additional label
-		log.Printf("Filename is %v", filename)
+		defer uploadFileReadeCloser.Close()
 
 		// Construct path for push API (keywords for search: grafana.com promtail-push-api plaintext payload)
-		var pushPath strings.Builder
+		var basePushPath strings.Builder
 		// Read basic label, value pairs from query string
 		for label, values := range request.URL.Query() {
 			for _, value := range values {
-				if pushPath.Len() > 0 {
-					pushPath.WriteByte('/')
+				if basePushPath.Len() > 0 {
+					basePushPath.WriteByte('/')
 				}
-				pushPath.WriteString(url.QueryEscape(label))
-				pushPath.WriteByte('/')
-				pushPath.WriteString(url.QueryEscape(value))
+				basePushPath.WriteString(url.QueryEscape(label))
+				basePushPath.WriteByte('/')
+				basePushPath.WriteString(url.QueryEscape(value))
 			}
 		}
-
-		// Make post request to promtail
-		promtailRequest, err := makePromtailRequest(pushPath.String(), "00:09:58:612", "ok", promtailConfig)
-		if err != nil {
-			log.Fatalf("failed to POST: %v", err)
-			return
+		filename := uploadedFileInfo.Filename // Additional label
+		log.Printf("Filename is %v", filename)
+		timestampDate := "2023-12-24"
+		if filename != "" {
+			timestampDate = "2023-12-23"
 		}
 
-		promtailResponse, err := http.DefaultClient.Do(promtailRequest)
+		// Read and unzip file
+		zipReader, err := zip.NewReader(uploadedFile, uploadedFileInfo.Size)
 		if err != nil {
-			log.Fatalf("failed to POST: %v", err)
+			log.Fatalf("Error read archive file %v (error: %v)", filename, err)
 			return
 		}
-		defer promtailResponse.Body.Close()
-		if promtailResponse.StatusCode != http.StatusCreated {
-			log.Printf("status = %d, want = %d", promtailResponse.StatusCode, http.StatusCreated)
+		for _, packedFile := range zipReader.File {
+			if strings.HasSuffix(packedFile.Name, "Verbose.log") {
+				packedFileReadCloser, err := packedFile.Open()
+				if err != nil {
+					log.Fatalf("Error unpacked file %v from archive %v (error: %v)", packedFile, filename, err)
+					return
+				}
+				defer packedFileReadCloser.Close()
+				packedFileScanner := bufio.NewScanner(packedFileReadCloser)
+				packedFileScanner.Split(bufio.ScanLines)
+				for packedFileScanner.Scan() {
+					rawPushPayload := packedFileScanner.Text()
+
+					// Line sample for custom format
+					// 00:09:58:096__FINE_____TAG_AuthManag            |﹏AuthManag <--
+					timestampTime := rawPushPayload[0:12]
+					logLevel := strings.ReplaceAll(rawPushPayload[14:23], "_", "")
+					logSource := strings.ReplaceAll(rawPushPayload[23:48], " ", "")
+					_, logTag, logSourceIsTag := strings.Cut(logSource, "_")
+
+					// Push to promtail
+					var pushPath strings.Builder
+					pushPath.WriteString(pushPath.String())
+					pushPath.WriteString("/")
+					pushPath.WriteString("level")
+					pushPath.WriteString("/")
+					pushPath.WriteString(logLevel)
+					if logSourceIsTag {
+						pushPath.WriteString("/")
+						pushPath.WriteString("tag")
+						pushPath.WriteString("/")
+						pushPath.WriteString(logTag)
+					} else {
+						pushPath.WriteString("/")
+						pushPath.WriteString("source")
+						pushPath.WriteString("/")
+						pushPath.WriteString(logSource)
+					}
+
+					// Make post request to promtail
+					promtailRequest, err := makePromtailRequest(
+						pushPath.String(),
+						fmt.Sprintf("%vT%v+03:00", timestampDate, timestampTime),
+						rawPushPayload,
+						promtailConfig,
+					)
+					if err != nil {
+						log.Fatalf("Failed make request: %v", err)
+						return
+					}
+
+					promtailResponse, err := http.DefaultClient.Do(promtailRequest)
+					if err != nil {
+						log.Fatalf("Failed to POST: %v", err)
+						return
+					}
+					defer promtailResponse.Body.Close()
+					if promtailResponse.StatusCode != http.StatusCreated {
+						log.Printf("status = %d, want = %d", promtailResponse.StatusCode, http.StatusCreated)
+					}
+					if ct := promtailResponse.Header.Get("Content-Type"); ct != "application/json" {
+						log.Printf("Content-Type = %s, want = \"application/json\"", ct)
+					}
+					body, err := io.ReadAll(promtailResponse.Body)
+					if err != nil {
+						log.Fatalf("failed to read response body: %v", err)
+						return
+					}
+					var result SuccessfullyUploadedResult
+					if err := json.Unmarshal(body, &result); err != nil {
+						log.Fatalf("failed to decode response body: %v", err)
+						return
+					}
+					log.Printf("Push result %v", result)
+
+				}
+			}
 		}
-		if ct := promtailResponse.Header.Get("Content-Type"); ct != "application/json" {
-			log.Printf("Content-Type = %s, want = \"application/json\"", ct)
-		}
-		body, err := io.ReadAll(promtailResponse.Body)
-		if err != nil {
-			log.Fatalf("failed to read response body: %v", err)
-			return
-		}
-		var result SuccessfullyUploadedResult
-		if err := json.Unmarshal(body, &result); err != nil {
-			log.Fatalf("failed to decode response body: %v", err)
-			return
-		}
-		log.Printf("Push result %v", result)
 
 		// // Context
 		// ctx := context.Background()
@@ -315,7 +374,20 @@ func makePromtailRequest(pushPath string, timestamp string, payload string, prom
 	requestBodyBuffer := new(bytes.Buffer)
 	requestBodyBuffer.WriteString(payload)
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%v%v?timestamp=%v", promtailConfig.PromtailClientConfig["url"], pushPath, timestamp), requestBodyBuffer)
+	if promtailConfig.PromtailClientConfig["url"] == nil {
+		return nil, fmt.Errorf("EMPTY promtail url settings")
+	}
+
+	req, err := http.NewRequest(
+		"POST",
+		fmt.Sprintf(
+			"%v%v?timestamp=%v",
+			fmt.Sprintf("%v", promtailConfig.PromtailClientConfig["url"]),
+			pushPath,
+			timestamp,
+		),
+		requestBodyBuffer,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -115,7 +115,7 @@ func ReadMoLog(filename string) []*MoLog {
 		if testPath == uploadPath {
 			panic(fmt.Sprintf("test path and upload path can't be same [%s]", moLogConfig.EndpointTest))
 		}
-		if moLogConfig.PromtailClientConfig["url"] == "" {
+		if moLogConfig.PromtailClientConfig["url"] == nil || moLogConfig.PromtailClientConfig["url"] == "" {
 			panic(fmt.Sprintf("Promtail url must be defined for promtail.to.endpoint address [%s]", moLogConfig.Address))
 		}
 		if _, exists := moLog.TestUIs[testPath]; exists {
