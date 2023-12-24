@@ -119,7 +119,6 @@ func (moLog *MoLog) ServeHTTP(responseWriter http.ResponseWriter, request *http.
 
 		filename := info.Filename // Additional label
 		log.Printf("Filename is %v", filename)
-		return
 
 		// Construct path for push API (keywords for search: grafana.com promtail-push-api plaintext payload)
 		var pushPath strings.Builder

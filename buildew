@@ -32,14 +32,13 @@ if [ $COMMAND == "publish" ]; then
 fi
 
 if [ $COMMAND == "test" ]; then
-    curl --include \
-        --no-buffer \
-        --header "Connection: Upgrade" \
-        --header "Upgrade: websocket" \
-        --header "Host: localhost:8801" \
-        --header "Origin: http://localhost:8801" \
-        --header "Sec-WebSocket-Key: MTIzNDU2Nzg5MDEyMzQ1Ng==" \
-        --header "Sec-WebSocket-Version: 13" \
-        http://localhost:8801/ws
+    curl --data-binary @.test-data/12.23.23_00.09.58_809.zip http://localhost:8804/api/v1
 fi
 
+if [ $COMMAND == "test2" ]; then
+    curl -F file=@.test-data/12.23.23_00.09.58_809.zip http://localhost:8804/api/v1
+fi
+
+if [ $COMMAND == "test3" ]; then
+    curl --form-escape --form 'field\name=12.23.23_00.09.58_809.zip' 'file=@.test-data/12.23.23_00.09.58_809.zip' http://localhost:8804/api/v1
+fi

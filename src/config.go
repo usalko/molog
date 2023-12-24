@@ -11,6 +11,7 @@ import (
 )
 
 const initConfig = `schema.version: "1.0"
+endpoint.upload: /api/v1
 # tls.cert.file: my-domain.crt
 # tls.key.file: my-domain.key
 promtail.to.endpoint:
@@ -76,13 +77,18 @@ func ReadMoLog(filename string) []*MoLog {
 	for _, moLogConfig := range config.ConfigMoLogs {
 		var moLog *MoLog
 		var exists bool
+
+		// Redefine default port to 8804
+		if moLogConfig.Address == "" {
+			moLogConfig.Address = ":8804"
+		}
+
+		// Redefine default uploadPath to /api/v1
+		if moLogConfig.EndpointUpload == "" {
+			moLogConfig.EndpointUpload = "api/v1"
+		}
+
 		if moLog, exists = moLogMap[moLogConfig.Address]; !exists {
-
-			// Redefine default port to 8804
-			if moLogConfig.Address == "" {
-				moLogConfig.Address = ":8804"
-			}
-
 			moLog = &MoLog{
 				Address:       moLogConfig.Address,
 				TLSCertFile:   certFile,
