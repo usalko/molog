@@ -8,7 +8,7 @@ import (
 	"os/signal"
 )
 
-const productVersion = "1.0.0"
+const productVersion = "1.0.1"
 const releaseTag = "sara adams"
 
 func main() {
