@@ -46,6 +46,6 @@ fi
 # =============================================================================
 
 if [ $COMMAND == "test0" ]; then
-    curl -X POST http://promtail:3500/push/foo/bar/fizz/buzz -d "Hell, World!"
+    curl -X POST http://promtail:3500/loki/api/v1/push?timestamp=now -d "Hell, World!"
 fi
 
